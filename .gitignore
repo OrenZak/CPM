@@ -1,0 +1,8 @@
+# Log Files
+*.log
+
+# Intellij - ignore most things
+*.iml
+.idea/*
+
+.DS_Store
