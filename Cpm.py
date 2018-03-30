@@ -27,7 +27,7 @@ class Bullet:
         self.latest_start = 0
 
     def __str__(self):
-        print("Activity %s . Min start is : %s and Max start is : %s",
+        print("Bullet ID %s . Min start is : %s and Max start is : %s",
               self.bullet_id, self.earliest_start, self.latest_start)
 
     def __eq__(self, other):
