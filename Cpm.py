@@ -228,6 +228,17 @@ class TestActivity(unittest.TestCase):
         self.assertEqual(TestActivity.test_bullets[0], activity.from_bullet)
         self.assertEqual(TestActivity.test_bullets[1], activity.to_bullet)
 
+    def test_activity_equals(self):
+        activity1 = TestActivity.test_activities[0]
+        activity2 = TestActivity.test_activities[0]
+        self.assertEqual(activity1, activity2)
+
+    def test_activity_not_equals(self):
+        activity1 = TestActivity.test_activities[0]
+        activity2 = TestActivity.test_activities[1]
+        self.assertNotEqual(activity1, activity2)
+
+
 
 if __name__ == "__main__":
     unittest.main()
