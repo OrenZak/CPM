@@ -102,7 +102,7 @@ class Project:
                         pass
 
     def calc_bullets_latest_start(self):
-        last_bullet = self.find_isolated_bullets()
+        last_bullet = self.get_last_bullet()
         if last_bullet is None:
             logger.debug("Project does not have last bullet")
             return None
@@ -176,7 +176,6 @@ class Project:
 
     def find_isolated_bullets(self):
         #  find isolated bullets (A bullet without following or ascending another activity)
-        #  means last bullet
         isolated_bullets = []
         for bullet, activities in self.structure.items():
             if len(activities) == 0:
@@ -308,13 +307,13 @@ class TestCPM(unittest.TestCase):
         self.assertTrue(bullet_g in isolated_bullets)
         self.assertTrue(bullet_end in isolated_bullets)
 
-    # def test_calc_bullets_latest_start(self):
-    #     project = TestCPM.test_project
-    #     print(project)
-
     def test_calc_bullets_earliest_start(self):
         project = TestCPM.test_project
         print(project)
+
+    # def test_calc_bullets_latest_start(self):
+    #     project = TestCPM.test_project
+    #     print(project)
 
 
 if __name__ == "__main__":
