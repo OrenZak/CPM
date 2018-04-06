@@ -78,10 +78,13 @@ class Project:
             self.project_duration = 0
 
     def calculate_project_duration(self):
-        self.calc_bullets_latest_start()
         self.calc_bullets_earliest_time()
-        last_bullet = self.find_isolated_bullets()
-        return last_bullet.latest_start
+        # self.calc_bullets_latest_start()
+        last_bullet = self.get_last_bullet()
+        if last_bullet is not None:
+            return last_bullet.latest_start
+        else:
+            return 0
 
     def calc_bullets_earliest_time(self):
         for bullet in self.structure.keys():
@@ -117,6 +120,12 @@ class Project:
                 activities_list.extend(new_pointers)
                 # remove current activity
                 activities_list.remove(activity)
+
+    def get_last_bullet(self):
+        for bullet in self.structure.keys():
+            if bullet.bullet_id == "End":
+                return bullet
+        return None
 
     def get_list_of_pointed_activities(self, bullet):
         activities_to_last = []
@@ -168,12 +177,14 @@ class Project:
     def find_isolated_bullets(self):
         #  find isolated bullets (A bullet without following or ascending another activity)
         #  means last bullet
+        isolated_bullets = []
         for bullet, activities in self.structure.items():
             if len(activities) == 0:
+                isolated_bullets.append(bullet)
                 print("bullet  : %s is isolated bullet" % bullet.bullet_id)
                 logger.debug("bullet  : %s is isolated bullet" % bullet.bullet_id)
-                return bullet
-        return None  # No Isolated bullet!
+
+        return isolated_bullets
 
     def find_critical_path(self):
         # find critical path of the project (Showing the edges of the critical pass with their length)
@@ -205,28 +216,40 @@ class Project:
 
 class TestCPM(unittest.TestCase):
     test_bullets = [
-        Bullet(1),  # first  bullet
-        Bullet(2),  # middle bullet
-        Bullet(3),  # middle bullet
-        Bullet(4),  # middle bullet
-        Bullet(5),  # latest bullet
+        Bullet("Start"),  # 0
+        Bullet("A"),  # 1
+        Bullet("B"),  # 2
+        Bullet("C"),  # 3
+        Bullet("D"),  # 4
+        Bullet("E"),  # 5
+        Bullet("F"),  # 6
+        Bullet("G"),  # 7
+        Bullet("End"),  # 8
     ]
 
     test_activities = [
-        Activity("Create README.md", 1, test_bullets[0], test_bullets[1]),
-        Activity("Implement validate", 2, test_bullets[0], test_bullets[2]),
-        Activity("Implement Find Isolated Activities", 3, test_bullets[0], test_bullets[3]),
-        Activity("Implement Find Critical Path", 4, test_bullets[1], test_bullets[4]),
-        Activity("Implement Show Slacks", 5, test_bullets[2], test_bullets[4]),
-        Activity("Implement UI View", 6, test_bullets[3], test_bullets[4]),
+        Activity("Task 1", 4, test_bullets[0], test_bullets[1]),
+        Activity("Task 2", 2, test_bullets[2], test_bullets[4]),
+        Activity("Task 3", 2, test_bullets[4], test_bullets[7]),
+        Activity("Task 4", 5, test_bullets[6], test_bullets[8]),
+        Activity("Task 5", 6, test_bullets[0], test_bullets[2]),
+        Activity("Task 6", 4, test_bullets[3], test_bullets[5]),
+        Activity("Task 7", 6, test_bullets[5], test_bullets[8]),
+        Activity("Task 8", 5, test_bullets[4], test_bullets[6]),
+        Activity("Task 9", 5, test_bullets[0], test_bullets[3]),
+        Activity("Task 10", 5, test_bullets[4], test_bullets[8]),
     ]
 
     test_structure = {
-        test_bullets[0]: [test_activities[0], test_activities[1], test_activities[2]],
-        test_bullets[1]: [test_activities[3]],
-        test_bullets[2]: [test_activities[4]],
+        test_bullets[0]: [test_activities[0], test_activities[4], test_activities[8]],
+        test_bullets[1]: [],
+        test_bullets[2]: [test_activities[1]],
         test_bullets[3]: [test_activities[5]],
-        test_bullets[4]: [],
+        test_bullets[4]: [test_activities[2], test_activities[9], test_activities[7]],
+        test_bullets[5]: [test_activities[6]],
+        test_bullets[6]: [test_activities[3]],
+        test_bullets[7]: [],
+        test_bullets[8]: [],
     }
 
     test_project = Project(test_structure)
@@ -235,8 +258,10 @@ class TestCPM(unittest.TestCase):
         pass
 
     def test_bullet_creation(self):
-        bullet = TestCPM.test_bullets[0]
-        self.assertEqual(1, bullet.bullet_id)
+        start_bullet = TestCPM.test_bullets[0]
+        end_bullet = TestCPM.test_bullets[-1]
+        self.assertEqual("Start", start_bullet.bullet_id)
+        self.assertEqual("End", end_bullet.bullet_id)
 
     def test_bullet_equals(self):
         bullet1 = TestCPM.test_bullets[0]
@@ -252,8 +277,8 @@ class TestCPM(unittest.TestCase):
 
     def test_activity_creation(self):
         activity = TestCPM.test_activities[0]
-        self.assertEqual("Create README.md", activity.name)
-        self.assertEqual(1, activity.duration)
+        self.assertEqual("Task 1", activity.name)
+        self.assertEqual(4, activity.duration)
         self.assertEqual(TestCPM.test_bullets[0], activity.from_bullet)
         self.assertEqual(TestCPM.test_bullets[1], activity.to_bullet)
 
@@ -275,10 +300,19 @@ class TestCPM(unittest.TestCase):
         self.assertDictEqual(TestCPM.test_structure, project.structure)
 
     def test_find_isolated_bullets(self):
-        last_bullet = TestCPM.test_project.find_isolated_bullets()
-        self.assertEqual(TestCPM.test_bullets[4], last_bullet)
+        isolated_bullets = TestCPM.test_project.find_isolated_bullets()
+        bullet_a = TestCPM.test_bullets[1]
+        bullet_g = TestCPM.test_bullets[1]
+        bullet_end = TestCPM.test_bullets[1]
+        self.assertTrue(bullet_a in isolated_bullets)
+        self.assertTrue(bullet_g in isolated_bullets)
+        self.assertTrue(bullet_end in isolated_bullets)
 
-    def test_calc_bullets_latest_start(self):
+    # def test_calc_bullets_latest_start(self):
+    #     project = TestCPM.test_project
+    #     print(project)
+
+    def test_calc_bullets_earliest_start(self):
         project = TestCPM.test_project
         print(project)
 
