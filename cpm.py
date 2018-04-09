@@ -1,4 +1,5 @@
 import logging
+import operator
 import unittest
 
 # create logger with
@@ -28,7 +29,7 @@ class Bullet:
 
     def __str__(self):
         return "Bullet ID %s . Min start is : %s and Max start is : %s" % \
-               self.bullet_id, self.earliest_start, self.latest_start
+               (self.bullet_id, self.earliest_start, self.latest_start)
 
     def __eq__(self, other):
         return self.bullet_id == other.bullet_id
@@ -53,7 +54,7 @@ class Activity:
 
     def __str__(self):
         return "Activity %s with duration %s , from bullet : %s to bullet : %s" % \
-               self.name, self.duration, self.from_bullet, self.to_bullet
+               (self.name, self.duration, self.from_bullet, self.to_bullet)
 
     def __eq__(self, other):
         return self.name == other.name and \
@@ -72,34 +73,34 @@ class Project:
         # this method initializes a project object if no dictionary or None is given, an empty dictionary will be used
         if structure is not None:
             self.structure = structure
-            self.project_duration = self.calculate_project_duration()
+            if len(self.validate()) > 0:
+                self.project_duration = 0
+            else:
+                self.project_duration = self.calculate_project_duration()
         else:
             self.structure = {}
             self.project_duration = 0
 
     def calculate_project_duration(self):
-        self.calc_bullets_earliest_time()
-        # self.calc_bullets_latest_start()
+        self.calc_bullets_earliest_start()
+        self.calc_bullets_latest_start()
         last_bullet = self.get_last_bullet()
         if last_bullet is not None:
             return last_bullet.latest_start
         else:
             return 0
 
-    def calc_bullets_earliest_time(self):
-        for bullet in self.structure.keys():
-            if len(self.structure[bullet]) == 0:  # this is the last bullet
-                pass
-            else:
-                for activity in self.structure[bullet]:
-                    if activity.to_bullet.earliest_start == 0 or \
-                            activity.to_bullet.earliest_start > activity.duration + activity.from_bullet.earliest_start:
+    def calc_bullets_earliest_start(self):
+        activity_list = self.structure[self.get_first_bullet()][:]
+        while len(activity_list) > 0:
+            activity = activity_list[0]
+            # check whether the ES is 0 or it greater than the activity duration and the parent ES.
+            if activity.to_bullet.earliest_start == 0 or \
+                    activity.to_bullet.earliest_start < activity.duration + activity.from_bullet.earliest_start:
+                activity.to_bullet.earliest_start = activity.duration + activity.from_bullet.earliest_start
 
-                        # the activity points to a bullet that can start earlier.
-                        activity.to_bullet.earliest_start = activity.duration + activity.from_bullet.earliest_start
-                    else:
-                        # the activity points to a bullet that can't start earlier yet.
-                        pass
+            activity_list.extend(self.structure[activity.to_bullet])  # add the next list of the next bullet
+            activity_list = activity_list[1:]
 
     def calc_bullets_latest_start(self):
         last_bullet = self.get_last_bullet()
@@ -107,23 +108,30 @@ class Project:
             logger.debug("Project does not have last bullet")
             return None
         last_bullet.latest_start = last_bullet.earliest_start
-        self.project_duration = last_bullet.earliest_start
-        activities_list = self.get_list_of_pointed_activities(last_bullet)
-        while len(activities_list) > 0:
+        activity_list = self.get_list_of_pointed_activities(last_bullet)
+        while len(activity_list) > 0:
             # setting latest time for the current pointers
-            for activity in activities_list:
+            activity = activity_list[0]
+            if not activity.from_bullet.bullet_id == "Start":
                 if activity.from_bullet.latest_start == 0 or activity.from_bullet.latest_start > activity.to_bullet.latest_start - activity.duration:
                     activity.from_bullet.latest_start = activity.to_bullet.latest_start - activity.duration
-                # getting new pointers
-                new_pointers = self.get_list_of_pointed_activities(activity.from_bullet)
-                # adding pointers to the activities list
-                activities_list.extend(new_pointers)
-                # remove current activity
-                activities_list.remove(activity)
+
+            # getting new pointers
+            new_pointers = self.get_list_of_pointed_activities(activity.from_bullet)
+            # adding pointers to the activities list
+            activity_list.extend(new_pointers)
+            # remove current activity
+            activity_list = activity_list[1:]
 
     def get_last_bullet(self):
         for bullet in self.structure.keys():
             if bullet.bullet_id == "End":
+                return bullet
+        return None
+
+    def get_first_bullet(self):
+        for bullet in self.structure.keys():
+            if bullet.bullet_id == "Start":
                 return bullet
         return None
 
@@ -164,15 +172,19 @@ class Project:
 
     def validate(self):
         # this method reveals a circle's activities in the project, and display them
-        for bullet, activities in self.structure.items():
-            for activity in activities:
-                if activity.to_bullet == bullet:
-                    print("Bullet : %s contains a circle to himself with activity : %s" % (
-                        bullet.bullet_id, activity.name))
-                    logger.debug("Bullet : %s contains a circle to himself with activity : %s" % (
-                        bullet.bullet_id, activity.name))
-                    return False
-        return True  # No Circles!
+        circle_bullets_list = []
+        for bullet in self.structure.keys():
+            activities = self.structure[bullet][:]
+            if activities is not None and len(activities) > 0:
+                while len(activities) > 0:
+                    activity = activities[0]
+                    if activity.to_bullet == bullet:
+                        circle_bullets_list.append(bullet)
+                        break
+                    activities.extend(self.structure[activity.to_bullet])
+                    activities = activities[1:]
+
+        return circle_bullets_list
 
     def find_isolated_bullets(self):
         #  find isolated bullets (A bullet without following or ascending another activity)
@@ -187,16 +199,30 @@ class Project:
 
     def find_critical_path(self):
         # find critical path of the project (Showing the edges of the critical pass with their length)
+        critical_path = []
         for bullet in self.structure.keys():
             if bullet.earliest_start == bullet.latest_start:
-                print("Bullet : %s is a critical bullet" % bullet.bullet_id)
-                logger.debug("Bullet : %s is a critical bullet" % bullet.bullet_id)
+                activities = self.get_list_of_pointed_activities(bullet)
+                for activity in activities:
+                    if activity.duration + activity.from_bullet.earliest_start == bullet.earliest_start:
+                        critical_path.append(activity)
+                        print("Activity : %s is a critical activity" % activity.name)
+                        logger.debug("Activity : %s is a critical activity" % activity.name)
+
+        return critical_path
 
     def show_slacks(self):
-        # todo Show slack's time for all activities in descending order.
-        # Don’t show the critical activities in the list
-        # (By definition, critical path has activities with a zero-slack time)
-        pass
+        slack_list = {}
+        for bullet in self.structure.keys():
+            if not bullet.earliest_start == bullet.latest_start:
+                slack_list[bullet] = bullet.latest_start - bullet.earliest_start
+
+        slack_sorted_list = sorted(slack_list.items(), key=operator.itemgetter(1))
+
+        for slack in slack_sorted_list:
+            print("%s ### Slack value is : %s ###" % (slack[0], slack[1]))
+            logger.debug("%s ### Slack value is : %s ###" % (slack[0], slack[1]))
+        return slack_sorted_list
 
     def __str__(self):
         project_str = "Project Details:\n"
@@ -237,21 +263,43 @@ class TestCPM(unittest.TestCase):
         Activity("Task 8", 5, test_bullets[4], test_bullets[6]),
         Activity("Task 9", 5, test_bullets[0], test_bullets[3]),
         Activity("Task 10", 5, test_bullets[4], test_bullets[8]),
+
+        Activity("Task 11", 0, test_bullets[1], test_bullets[2]),
+        Activity("Task 12", 0, test_bullets[4], test_bullets[3]),
+        Activity("Task 13", 0, test_bullets[4], test_bullets[5]),
+        Activity("Task 14", 0, test_bullets[6], test_bullets[5]),
+        Activity("Task 15", 0, test_bullets[7], test_bullets[8]),
     ]
 
     test_structure = {
         test_bullets[0]: [test_activities[0], test_activities[4], test_activities[8]],
-        test_bullets[1]: [],
+        test_bullets[1]: [test_activities[10]],
         test_bullets[2]: [test_activities[1]],
         test_bullets[3]: [test_activities[5]],
-        test_bullets[4]: [test_activities[2], test_activities[9], test_activities[7]],
+        test_bullets[4]: [test_activities[2], test_activities[9], test_activities[7], test_activities[11],
+                          test_activities[12]],
         test_bullets[5]: [test_activities[6]],
-        test_bullets[6]: [test_activities[3]],
-        test_bullets[7]: [],
+        test_bullets[6]: [test_activities[3], test_activities[13]],
+        test_bullets[7]: [test_activities[14]],
+        test_bullets[8]: [],
+    }
+
+    test_circle_activities = [
+        Activity("Task 1", 4, test_bullets[0], test_bullets[1]),
+        Activity("Task 2", 2, test_bullets[1], test_bullets[2]),
+        Activity("Task 3", 2, test_bullets[2], test_bullets[0]),
+        Activity("Task 4", 2, test_bullets[2], test_bullets[8]),
+    ]
+
+    test_circle_structure = {
+        test_bullets[0]: [test_circle_activities[0]],
+        test_bullets[1]: [test_circle_activities[1]],
+        test_bullets[2]: [test_circle_activities[2], test_circle_activities[3]],
         test_bullets[8]: [],
     }
 
     test_project = Project(test_structure)
+    test_circle_project = Project(test_circle_structure)
 
     def setUp(self):
         pass
@@ -300,20 +348,65 @@ class TestCPM(unittest.TestCase):
 
     def test_find_isolated_bullets(self):
         isolated_bullets = TestCPM.test_project.find_isolated_bullets()
-        bullet_a = TestCPM.test_bullets[1]
-        bullet_g = TestCPM.test_bullets[1]
-        bullet_end = TestCPM.test_bullets[1]
-        self.assertTrue(bullet_a in isolated_bullets)
-        self.assertTrue(bullet_g in isolated_bullets)
+        bullet_end = TestCPM.test_bullets[8]
+        self.assertEqual(1, len(isolated_bullets))
         self.assertTrue(bullet_end in isolated_bullets)
 
     def test_calc_bullets_earliest_start(self):
-        project = TestCPM.test_project
-        print(project)
+        self.assertEqual(0, TestCPM.test_bullets[0].earliest_start)
+        self.assertEqual(4, TestCPM.test_bullets[1].earliest_start)
+        self.assertEqual(6, TestCPM.test_bullets[2].earliest_start)
+        self.assertEqual(8, TestCPM.test_bullets[3].earliest_start)
+        self.assertEqual(8, TestCPM.test_bullets[4].earliest_start)
+        self.assertEqual(13, TestCPM.test_bullets[5].earliest_start)
+        self.assertEqual(13, TestCPM.test_bullets[6].earliest_start)
+        self.assertEqual(10, TestCPM.test_bullets[7].earliest_start)
+        self.assertEqual(19, TestCPM.test_bullets[8].earliest_start)
 
-    # def test_calc_bullets_latest_start(self):
-    #     project = TestCPM.test_project
-    #     print(project)
+    def test_calc_bullets_latest_start(self):
+        self.assertEqual(0, TestCPM.test_bullets[0].latest_start)
+        self.assertEqual(6, TestCPM.test_bullets[1].latest_start)
+        self.assertEqual(6, TestCPM.test_bullets[2].latest_start)
+        self.assertEqual(9, TestCPM.test_bullets[3].latest_start)
+        self.assertEqual(8, TestCPM.test_bullets[4].latest_start)
+        self.assertEqual(13, TestCPM.test_bullets[5].latest_start)
+        self.assertEqual(13, TestCPM.test_bullets[6].latest_start)
+        self.assertEqual(19, TestCPM.test_bullets[7].latest_start)
+        self.assertEqual(19, TestCPM.test_bullets[8].latest_start)
+
+    def test_get_first_bullet(self):
+        first_bullet = TestCPM.test_project.get_first_bullet()
+        self.assertEqual("Start", first_bullet.bullet_id)
+
+    def test_get_last_bullet(self):
+        last_bullet = TestCPM.test_project.get_last_bullet()
+        self.assertEqual("End", last_bullet.bullet_id)
+
+    def test_critical_path(self):
+        critical_path = TestCPM.test_project.find_critical_path()
+        self.assertTrue(TestCPM.test_activities[4] in critical_path)
+        self.assertTrue(TestCPM.test_activities[1] in critical_path)
+        self.assertTrue(TestCPM.test_activities[7] in critical_path)
+        self.assertTrue(TestCPM.test_activities[13] in critical_path)
+        self.assertTrue(TestCPM.test_activities[6] in critical_path)
+
+    def test_show_slack(self):
+        slack_list = TestCPM.test_project.show_slacks()
+        self.assertEqual(slack_list[0], (TestCPM.test_bullets[3], 1))
+        self.assertEqual(slack_list[1], (TestCPM.test_bullets[1], 2))
+        self.assertEqual(slack_list[2], (TestCPM.test_bullets[7], 9))
+
+    def test_validate_not_circle(self):
+        circle_list = self.test_project.validate()
+        self.assertTrue(len(circle_list) == 0)
+
+    def test_validate_is_circle(self):
+        circle_list = self.test_circle_project.validate()
+        self.assertTrue(len(circle_list) == 3)
+        self.assertTrue(TestCPM.test_bullets[0] in circle_list)
+        self.assertTrue(TestCPM.test_bullets[1] in circle_list)
+        self.assertTrue(TestCPM.test_bullets[2] in circle_list)
+        self.assertTrue(TestCPM.test_bullets[8] not in circle_list)
 
 
 if __name__ == "__main__":
