@@ -158,17 +158,43 @@ class Project:
                 "added bullet : %s and added activity : %s to the bullet list of activities." % (
                     bullet.bullet_id, activity.name))
 
-    def remove_activity_from_bullet(self, activity, bullet):
-        # this method remove activity from a bullet in the project
-        if bullet in self.structure:
-            if activity in self.structure[bullet]:
-                self.structure[bullet].pop(activity)
-                logger.debug("activity %s removed from bullet : %s" % (activity.name, bullet.bullet_id))
-            else:
-                logger.debug(
-                    "activity : %s is not in the bullet : %s list of activities " % (activity.name, bullet.bullet_id))
-        else:
-            logger.debug(" bullet : %s is not in the project" % bullet.bullet_id)
+    def remove_activity(self, activity):
+        # this method remove activity
+        if activity.from_bullet.bullet_id == "Start":
+            if len(self.structure[activity.from_bullet]) == 1 :
+                logger.debug("cant remove the only activity from the start bullet")
+                print("cant remove the only activity from the start bullet")
+                return
+
+        flag = False
+        if len(self.get_list_of_pointed_activities(activity.to_bullet)) == 1:
+            self.structure[activity.from_bullet].extend(self.structure[activity.to_bullet])
+            logger.debug("Make bullet %s points to the bullet %s activities." % (activity.from_bullet, activity.to_bullet))
+            print("Make bullet %s points to the bullet %s activities." % (activity.from_bullet, activity.to_bullet))
+            self.structure.pop(activity.to_bullet, None)
+            logger.debug("removed bullet : %s from the project." % (activity.to_bullet))
+            print("removed bullet : %s from the project." % (activity.to_bullet))
+            self.structure[activity.from_bullet].remove(activity)
+            logger.debug("removed activity : %s from the project." % (activity))
+            print("removed activity : %s from the project." % (activity))
+            flag = True
+
+        if len(self.structure[activity.from_bullet]) == 1 and flag == False:
+            self.structure[activity.from_bullet].remove(activity)
+            logger.debug("removed activity : %s from the project." % (activity))
+            print("removed activity : %s from the project." % (activity))
+            for bullet in self.structure.keys():
+                if bullet.bullet_id == "End":
+                    logger.debug("Make bullet %s points to the end." %(activity.from_bullet))
+                    print("Make bullet %s points to the end." %(activity.from_bullet))
+                    newActivity = Activity(activity.name, 0, activity.from_bullet, bullet)
+                    self.structure[activity.from_bullet].append(newActivity)
+                    break
+
+
+
+        pass
+                #logger.debug("activity %s removed "% (activity.name))
 
     def validate(self):
         # this method reveals a circle's activities in the project, and display them
@@ -190,7 +216,12 @@ class Project:
         #  find isolated bullets (A bullet without following or ascending another activity)
         isolated_bullets = []
         for bullet, activities in self.structure.items():
+            isisolated = False
+            if len(self.get_list_of_pointed_activities(bullet)) == 0:
+                isisolated = True
             if len(activities) == 0:
+                isisolated = True
+            if isisolated == True:
                 isolated_bullets.append(bullet)
                 print("bullet  : %s is isolated bullet" % bullet.bullet_id)
                 logger.debug("bullet  : %s is isolated bullet" % bullet.bullet_id)
@@ -349,8 +380,10 @@ class TestCPM(unittest.TestCase):
     def test_find_isolated_bullets(self):
         isolated_bullets = TestCPM.test_project.find_isolated_bullets()
         bullet_end = TestCPM.test_bullets[8]
-        self.assertEqual(1, len(isolated_bullets))
+        bullet_start = TestCPM.test_bullets[0]
+        self.assertEqual(2, len(isolated_bullets))
         self.assertTrue(bullet_end in isolated_bullets)
+        self.assertTrue(bullet_start in isolated_bullets)
 
     def test_calc_bullets_earliest_start(self):
         self.assertEqual(0, TestCPM.test_bullets[0].earliest_start)
