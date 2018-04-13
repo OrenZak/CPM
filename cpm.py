@@ -161,40 +161,38 @@ class Project:
     def remove_activity(self, activity):
         # this method remove activity
         if activity.from_bullet.bullet_id == "Start":
-            if len(self.structure[activity.from_bullet]) == 1 :
+            if len(self.structure[activity.from_bullet]) == 1:
                 logger.debug("cant remove the only activity from the start bullet")
                 print("cant remove the only activity from the start bullet")
                 return
 
-        flag = False
+        is_last_pointed_activity = False
         if len(self.get_list_of_pointed_activities(activity.to_bullet)) == 1:
             self.structure[activity.from_bullet].extend(self.structure[activity.to_bullet])
+            for act in self.structure[activity.from_bullet]:
+                act.from_bullet = activity.from_bullet
             logger.debug("Make bullet %s points to the bullet %s activities." % (activity.from_bullet, activity.to_bullet))
             print("Make bullet %s points to the bullet %s activities." % (activity.from_bullet, activity.to_bullet))
             self.structure.pop(activity.to_bullet, None)
-            logger.debug("removed bullet : %s from the project." % (activity.to_bullet))
-            print("removed bullet : %s from the project." % (activity.to_bullet))
-            self.structure[activity.from_bullet].remove(activity)
-            logger.debug("removed activity : %s from the project." % (activity))
-            print("removed activity : %s from the project." % (activity))
-            flag = True
+            logger.debug("removed bullet : %s from the project." % activity.to_bullet)
+            print("removed bullet : %s from the project." % activity.to_bullet)
+            is_last_pointed_activity = True
 
-        if len(self.structure[activity.from_bullet]) == 1 and flag == False:
+        if len(self.structure[activity.from_bullet]) == 1 and not is_last_pointed_activity:
             self.structure[activity.from_bullet].remove(activity)
-            logger.debug("removed activity : %s from the project." % (activity))
-            print("removed activity : %s from the project." % (activity))
+            logger.debug("removed activity : %s from the project." % activity)
+            print("removed activity : %s from the project." % activity)
             for bullet in self.structure.keys():
                 if bullet.bullet_id == "End":
-                    logger.debug("Make bullet %s points to the end." %(activity.from_bullet))
-                    print("Make bullet %s points to the end." %(activity.from_bullet))
-                    newActivity = Activity(activity.name, 0, activity.from_bullet, bullet)
-                    self.structure[activity.from_bullet].append(newActivity)
-                    break
-
-
-
-        pass
-                #logger.debug("activity %s removed "% (activity.name))
+                    logger.debug("Make bullet %s points to the end." % activity.from_bullet)
+                    print("Make bullet %s points to the end." % activity.from_bullet)
+                    new_activity = Activity(activity.name, 0, activity.from_bullet, bullet)
+                    self.structure[activity.from_bullet].append(new_activity)
+                    return
+        self.structure[activity.from_bullet].remove(activity)
+        logger.debug("removed activity : %s from the project." % activity)
+        print("removed activity : %s from the project." % activity)
+        return
 
     def validate(self):
         # this method reveals a circle's activities in the project, and display them
@@ -440,6 +438,18 @@ class TestCPM(unittest.TestCase):
         self.assertTrue(TestCPM.test_bullets[1] in circle_list)
         self.assertTrue(TestCPM.test_bullets[2] in circle_list)
         self.assertTrue(TestCPM.test_bullets[8] not in circle_list)
+
+    def test_remove_activity(self):
+        self.test_project.remove_activity(TestCPM.test_activities[14])
+        self.assertEqual(TestCPM.test_project.structure[TestCPM.test_bullets[7]][0].to_bullet.bullet_id, "End")
+        self.test_project.remove_activity(TestCPM.test_activities[7])
+        self.assertEqual(len(TestCPM.test_project.structure[TestCPM.test_bullets[4]]), 6)
+        self.assertTrue(TestCPM.test_bullets[6] not in TestCPM.test_project.structure.keys())
+        self.test_project.remove_activity(TestCPM.test_activities[1])
+        self.assertTrue(TestCPM.test_bullets[4] not in TestCPM.test_project.structure.keys())
+        self.assertEqual(len(TestCPM.test_project.structure[TestCPM.test_bullets[2]]), 6)
+
+
 
 
 if __name__ == "__main__":
