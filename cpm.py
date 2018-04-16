@@ -6,7 +6,7 @@ import unittest
 logger = logging.getLogger('cpm_app')
 logger.setLevel(logging.DEBUG)
 # create file handler which logs even debug messages
-fh = logging.FileHandler('logs.log')
+fh = logging.FileHandler('logs.log', mode='w')
 fh.setLevel(logging.DEBUG)
 
 # create formatter and add it to the handlers
@@ -73,15 +73,20 @@ class Project:
         # this method initializes a project object if no dictionary or None is given, an empty dictionary will be used
         if structure is not None:
             self.structure = structure
+            logger.debug("Project init with structure dictionary")
             if len(self.validate()) > 0:
                 self.project_duration = 0
+                logger.debug("Project validate is bad, thus project duration is 0")
             else:
                 self.project_duration = self.calculate_project_duration()
+                logger.debug("Project duration is: %s" % self.project_duration)
         else:
+            logger.debug("Project init None structure, thus new structure initiated, duration 0")
             self.structure = {}
             self.project_duration = 0
 
     def calculate_project_duration(self):
+        logger.debug("Start calculate project duration")
         self.calc_bullets_earliest_start()
         self.calc_bullets_latest_start()
         last_bullet = self.get_last_bullet()
@@ -91,6 +96,7 @@ class Project:
             return 0
 
     def calc_bullets_earliest_start(self):
+        logger.debug("Start calculate bullets earliest start")
         activity_list = self.structure[self.get_first_bullet()][:]
         while len(activity_list) > 0:
             activity = activity_list[0]
@@ -103,6 +109,7 @@ class Project:
             activity_list = activity_list[1:]
 
     def calc_bullets_latest_start(self):
+        logger.debug("Start calculate bullets latest start")
         last_bullet = self.get_last_bullet()
         if last_bullet is None:
             logger.debug("Project does not have last bullet")
@@ -145,18 +152,18 @@ class Project:
 
     def add_activity_to_bullet(self, activity, bullet):
         # this method add activity to a bullet in the project
+        logger.debug("Add activity %s to bullet %s" % (activity, bullet))
         if bullet in self.structure:
             if activity in self.structure[bullet]:
-                logger.debug("%s already in the list of  activities" % activity.name)
+                logger.debug("%s already in the list of activities" % activity.name)
             else:
                 self.structure[bullet].append(activity)
-                logger.debug("added activity : %s to the list of activities" % activity.name)
+                logger.debug("added activity: %s to the list of activities" % activity.name)
         else:
             self.structure[bullet] = []
             self.structure[bullet].append(activity)
             logger.debug(
-                "added bullet : %s and added activity : %s to the bullet list of activities." % (
-                    bullet.bullet_id, activity.name))
+                "added bullet: %s with activity: %s to the project structure." % (bullet.bullet_id, activity.name))
 
     def remove_activity(self, activity):
         # this method remove activity
@@ -171,7 +178,8 @@ class Project:
             self.structure[activity.from_bullet].extend(self.structure[activity.to_bullet])
             for act in self.structure[activity.from_bullet]:
                 act.from_bullet = activity.from_bullet
-            logger.debug("Make bullet %s points to the bullet %s activities." % (activity.from_bullet, activity.to_bullet))
+            logger.debug(
+                "Make bullet %s points to the bullet %s activities." % (activity.from_bullet, activity.to_bullet))
             print("Make bullet %s points to the bullet %s activities." % (activity.from_bullet, activity.to_bullet))
             self.structure.pop(activity.to_bullet, None)
             logger.debug("removed bullet : %s from the project." % activity.to_bullet)
@@ -196,6 +204,7 @@ class Project:
 
     def validate(self):
         # this method reveals a circle's activities in the project, and display them
+        logger.debug("Start validate for the project")
         circle_bullets_list = []
         for bullet in self.structure.keys():
             activities = self.structure[bullet][:]
@@ -208,26 +217,31 @@ class Project:
                     activities.extend(self.structure[activity.to_bullet])
                     activities = activities[1:]
 
+        if len(circle_bullets_list) != 0:
+            logger.debug("Circle bullets are:")
+            i = 0
+            for bullet in circle_bullets_list:
+                logger.debug("%d. %s" % (i, bullet))
+                i += 1
+        else:
+            logger.debug("There is not circle bullets")
         return circle_bullets_list
 
     def find_isolated_bullets(self):
         #  find isolated bullets (A bullet without following or ascending another activity)
+        logger.debug("Start find isolated bullets")
         isolated_bullets = []
         for bullet, activities in self.structure.items():
-            isisolated = False
-            if len(self.get_list_of_pointed_activities(bullet)) == 0:
-                isisolated = True
-            if len(activities) == 0:
-                isisolated = True
-            if isisolated == True:
+            if len(self.get_list_of_pointed_activities(bullet)) == 0 or len(activities) == 0:
                 isolated_bullets.append(bullet)
-                print("bullet  : %s is isolated bullet" % bullet.bullet_id)
-                logger.debug("bullet  : %s is isolated bullet" % bullet.bullet_id)
+                print("bullet: %s is isolated bullet" % bullet.bullet_id)
+                logger.debug("bullet: %s is isolated bullet" % bullet.bullet_id)
 
         return isolated_bullets
 
     def find_critical_path(self):
         # find critical path of the project (Showing the edges of the critical pass with their length)
+        logger.debug("Start find critical path")
         critical_path = []
         for bullet in self.structure.keys():
             if bullet.earliest_start == bullet.latest_start:
@@ -241,6 +255,7 @@ class Project:
         return critical_path
 
     def show_slacks(self):
+        logger.debug("Start show slacks")
         slack_list = {}
         for bullet in self.structure.keys():
             if not bullet.earliest_start == bullet.latest_start:
@@ -292,7 +307,6 @@ class TestCPM(unittest.TestCase):
         Activity("Task 8", 5, test_bullets[4], test_bullets[6]),
         Activity("Task 9", 5, test_bullets[0], test_bullets[3]),
         Activity("Task 10", 5, test_bullets[4], test_bullets[8]),
-
         Activity("Task 11", 0, test_bullets[1], test_bullets[2]),
         Activity("Task 12", 0, test_bullets[4], test_bullets[3]),
         Activity("Task 13", 0, test_bullets[4], test_bullets[5]),
@@ -448,8 +462,6 @@ class TestCPM(unittest.TestCase):
         self.test_project.remove_activity(TestCPM.test_activities[1])
         self.assertTrue(TestCPM.test_bullets[4] not in TestCPM.test_project.structure.keys())
         self.assertEqual(len(TestCPM.test_project.structure[TestCPM.test_bullets[2]]), 6)
-
-
 
 
 if __name__ == "__main__":
